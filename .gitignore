@@ -8,10 +8,12 @@ venv/
 env/
 ENV/
 
-# 日志和数据文件
+# 日志文件
 *.log
-*.db
 *.pid
+
+# 忽略空的测试数据库，但保留主数据库
+prices.db
 
 # 环境变量和密钥文件
 .env
@@ -21,6 +23,7 @@ ENV/
 *.key
 *.pem
 config.json
+backup_credentials.txt
 
 # 系统文件
 .DS_Store
