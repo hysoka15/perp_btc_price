@@ -1,34 +1,28 @@
 项目需求：对比多个交易所直接btc合约价格的差距，要求可视化显示。
 
-1.读取币安交易所，btcusdt交易对的合约价格，作为基准价。
-币安api:
-bp6YKzhVlBZat5TnnDHG6UMPs73muOTWYrD3Hh9X9NZUasP0sp4EuE7v7Qgs6dqt
-api_secret:
-u0xAA5zH503tjrLJsBexJFfszAOvqvaauQEoiD0pQ6vX39M0bcHcqQ3muGAp2zTy
+## 系统架构
 
-2.读取多个交易所的btc合约价格，比如 lighter,edgex，aster
-lighter,可以参考lighter-python这个官方sdk，示例用法simple_buy_sell_trader.py
-edgex可以参考官方sdk:edgex-python-sdk 示例用法runbot.py
-aster可以参考用法：aster_rh.py
+1. **币安交易所**：作为基准价格源
+   - 获取BTCUSDT合约价格作为基准
 
-可以使用的账户参数：
-lighter：
-base-url:https://mainnet.zklighter.elliot.ai
-API_KEY_PRIVATE_KEY：0xc044fec1ca6f7dfafacd04e8a74ba7142639352a3fff322ad54540cb5e78ec26f17b46ac01ae3922
-ACCOUNT_INDEX:76835
-API_KEY_INDEX:2
+2. **其他交易所**：价格对比源
+   - **Lighter**：使用lighter-python SDK
+   - **EdgeX**：使用edgex-python-sdk  
+   - **Aster**：使用REST API
 
-edgex:
-"edgex": {
-    "account_id": "652994179613328022",
-    "stark_private_key": "02d9aa779fe8c5767780108b8bd28ad87579039d41bd46cef2ffe09f50e1156a",
-    "base_url": "https://pro.edgex.exchange",
-    "ws_url": "wss://quote.edgex.exchange"
-  }
+## 配置说明
 
-aster:
-api_key:ff85b8b9274891d65da610f8186bb02d4b0957de31b3322113ccae6f7b16ce7f
-api_secret:90195d2412e0fb8dd06283d36223591458f83636deb629779aaf5eafe0fb026b
+⚠️ **安全提醒**：所有API密钥均通过环境变量配置，请参考 `.env.example` 文件。
+
+**交易所配置**：
+- **Lighter**：base_url: https://mainnet.zklighter.elliot.ai
+- **EdgeX**：base_url: https://pro.edgex.exchange  
+- **Aster**：base_url: https://fapi.asterdex.com
+
+**环境变量要求**：
+- `ASTER_API_KEY` 和 `ASTER_API_SECRET`
+- `EDGEX_ACCOUNT_ID` 和 `EDGEX_STARK_PRIVATE_KEY`
+- 其他配置参数
 
 3.每隔 2s读取一次全平台的价格，所有价格都要持久化，保存到数据库中
 

@@ -40,21 +40,26 @@ pip install -e ./lighter-python
 pip install -e ./edgex-python-sdk
 ```
 
-### 2. 配置API密钥
+### 2. 配置环境变量
 
-编辑配置文件，确保以下API密钥正确：
+复制环境变量模板并填入你的API密钥：
 
-**EdgeX配置:**
-- account_id: 652994179613328022
-- stark_private_key: 02d9aa779fe8c5767780108b8bd28ad87579039d41bd46cef2ffe09f50e1156a
-- base_url: https://pro.edgex.exchange
+```bash
+cp .env.example .env
+# 编辑 .env 文件，填入你的真实API密钥
+```
 
-**Aster配置:**
-- api_key: ff85b8b9274891d65da610f8186bb02d4b0957de31b3322113ccae6f7b16ce7f
-- api_secret: 90195d2412e0fb8dd06283d36223591458f83636deb629779aaf5eafe0fb026b
+**需要配置的环境变量:**
+- `ASTER_API_KEY`: Aster交易所API密钥
+- `ASTER_API_SECRET`: Aster交易所API秘钥
+- `EDGEX_ACCOUNT_ID`: EdgeX账户ID
+- `EDGEX_STARK_PRIVATE_KEY`: EdgeX Stark私钥
+- `EDGEX_BASE_URL`: EdgeX API地址（默认: https://pro.edgex.exchange）
 
-**Lighter配置:**
-- base_url: https://mainnet.zklighter.elliot.ai
+**⚠️ 重要安全提醒:**
+- 绝不要将真实的API密钥提交到代码仓库
+- 使用环境变量管理所有敏感信息
+- 确保 `.env` 文件已被 `.gitignore` 忽略
 
 ### 3. 启动系统
 
