@@ -14,8 +14,19 @@ logger = logging.getLogger(__name__)
 class EdgeXClient:
     """EdgeX交易所客户端 - 获取BTC价格"""
     
-    def __init__(self, base_url: str, account_id: str, stark_private_key: str):
-        self.base_url = base_url
+    def __init__(self, base_url: str = None, account_id: str = None, stark_private_key: str = None):
+        # 从环境变量获取配置
+        self.base_url = base_url or os.getenv('EDGEX_BASE_URL', 'https://pro.edgex.exchange')
+        account_id = account_id or os.getenv('EDGEX_ACCOUNT_ID')
+        stark_private_key = stark_private_key or os.getenv('EDGEX_STARK_PRIVATE_KEY')
+        
+        if not account_id or not stark_private_key:
+            logger.warning("EdgeX配置未完成，将无法获取价格数据")
+            self.account_id = None
+            self.stark_private_key = None
+            self.client = None
+            return
+            
         self.account_id = int(account_id)
         self.stark_private_key = stark_private_key
         self.client = None

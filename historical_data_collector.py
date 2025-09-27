@@ -54,15 +54,11 @@ class HistoricalDataCollector:
                 'name': 'EdgeX',
                 'enabled': True,
                 'base_url': 'https://pro.edgex.exchange',
-                'account_id': '652994179613328022',
-                'stark_private_key': '02d9aa779fe8c5767780108b8bd28ad87579039d41bd46cef2ffe09f50e1156a',
                 'contract_id': '10000001'
             },
             'aster': {
                 'name': 'Aster',
-                'enabled': True,
-                'api_key': 'ff85b8b9274891d65da610f8186bb02d4b0957de31b3322113ccae6f7b16ce7f',
-                'api_secret': '90195d2412e0fb8dd06283d36223591458f83636deb629779aaf5eafe0fb026b'
+                'enabled': True
             }
         }
         

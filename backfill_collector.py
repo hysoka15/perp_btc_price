@@ -56,11 +56,8 @@ class BackfillCollector:
             # 币安客户端
             self.binance_client = BinanceClient()
             
-            # Aster客户端 - 从CLAUDE.md读取配置
-            self.aster_client = AsterClient(
-                api_key="ff85b8b9274891d65da610f8186bb02d4b0957de31b3322113ccae6f7b16ce7f",
-                api_secret="90195d2412e0fb8dd06283d36223591458f83636deb629779aaf5eafe0fb026b"
-            )
+            # Aster客户端 - 从环境变量读取配置
+            self.aster_client = AsterClient()
             
             # Lighter客户端
             self.lighter_client = LighterClient(
@@ -68,11 +65,7 @@ class BackfillCollector:
             )
             
             # EdgeX客户端
-            self.edgex_client = EdgeXClient(
-                base_url="https://pro.edgex.exchange",
-                account_id="652994179613328022",
-                stark_private_key="02d9aa779fe8c5767780108b8bd28ad87579039d41bd46cef2ffe09f50e1156a"
-            )
+            self.edgex_client = EdgeXClient()
             
             logger.info("交易所客户端初始化完成")
             

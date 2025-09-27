@@ -3,6 +3,7 @@ import logging
 import time
 import hmac
 import hashlib
+import os
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -10,8 +11,18 @@ logger = logging.getLogger(__name__)
 class AsterClient:
     """Aster交易所客户端 - 获取BTC价格"""
     
-    def __init__(self, api_key: str, api_secret: str, base_url: str = "https://fapi.asterdex.com"):
-        self.api_key = api_key
+    def __init__(self, api_key: str = None, api_secret: str = None, base_url: str = "https://fapi.asterdex.com"):
+        # 从环境变量获取API密钥
+        self.api_key = api_key or os.getenv('ASTER_API_KEY')
+        api_secret = api_secret or os.getenv('ASTER_API_SECRET')
+        
+        if not self.api_key or not api_secret:
+            logger.warning("Aster API密钥未配置，将无法获取价格数据")
+            self.api_key = None
+            self.api_secret = None
+            self.session = None
+            return
+            
         self.api_secret = api_secret.encode()
         self.base_url = base_url
         self.session = requests.Session()
