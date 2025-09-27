@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+*.db
+*.pid
+node_modules/
+.env
+.DS_Store
+*.swp
+*.swo
