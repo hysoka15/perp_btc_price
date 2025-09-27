@@ -190,8 +190,26 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: {
-                        duration: 750, // 减少动画时间
-                        easing: 'easeInOutQuart'
+                        duration: 0, // 完全禁用动画，避免跳动
+                        easing: 'linear'
+                    },
+                    transitions: {
+                        active: {
+                            animation: {
+                                duration: 0
+                            }
+                        },
+                        show: {
+                            animation: {
+                                duration: 200,
+                                easing: 'easeOutQuart'
+                            }
+                        },
+                        hide: {
+                            animation: {
+                                duration: 0
+                            }
+                        }
                     },
                     scales: {
                         y: {
@@ -278,7 +296,7 @@
 
 
         // 更新图表数据
-        function updateChart(hours = 24, buttonElement = null) {
+        function updateChart(hours = 24, buttonElement = null, forceUpdate = false) {
             currentHours = hours;
             
             // 更新按钮状态
@@ -316,23 +334,67 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // 检查是否需要完全重建图表（时间范围改变或首次加载）
+                        // 检查是否需要完全重建图表
                         const isInitialLoad = !chart.data.labels || chart.data.labels.length === 0;
                         const isTimeRangeChange = window.lastHours !== hours;
+                        const shouldForceUpdate = forceUpdate || isInitialLoad || isTimeRangeChange;
                         
-                        if (isInitialLoad || isTimeRangeChange) {
-                            // 完全重建
+                        if (shouldForceUpdate) {
+                            // 完全重建图表（时间范围改变或首次加载）
                             chart.data = data.data;
-                            chart.update('none'); // 不使用动画
+                            chart.update('none');
+                            console.log('图表完全重建');
                         } else {
-                            // 简单更新：直接替换数据但使用平滑动画
-                            chart.data = data.data;
-                            chart.update('active'); // 使用平滑动画
+                            // 检查数据是否真的有变化
+                            const oldLabelsLength = chart.data.labels.length;
+                            const oldLastLabel = chart.data.labels[chart.data.labels.length - 1];
+                            const newLastLabel = data.data.labels[data.data.labels.length - 1];
+                            
+                            // 检查最后一个时间标签是否相同（没有新数据）
+                            if (oldLastLabel === newLastLabel && oldLabelsLength === data.data.labels.length) {
+                                // 数据没有变化，只检查是否需要更新数值
+                                let hasValueChanges = false;
+                                
+                                // 检查最后几个数据点的值是否有变化
+                                if (chart.data.datasets.length === data.data.datasets.length) {
+                                    for (let i = 0; i < chart.data.datasets.length; i++) {
+                                        const oldDataset = chart.data.datasets[i];
+                                        const newDataset = data.data.datasets[i];
+                                        
+                                        // 检查最后几个点的值
+                                        const checkPoints = Math.min(3, oldDataset.data.length);
+                                        for (let j = oldDataset.data.length - checkPoints; j < oldDataset.data.length; j++) {
+                                            if (j >= 0 && oldDataset.data[j] !== newDataset.data[j]) {
+                                                hasValueChanges = true;
+                                                break;
+                                            }
+                                        }
+                                        if (hasValueChanges) break;
+                                    }
+                                }
+                                
+                                if (hasValueChanges) {
+                                    chart.data = data.data;
+                                    chart.update('none'); // 无动画更新数值
+                                    console.log('更新数值（无新时间点）');
+                                } else {
+                                    console.log('数据无变化，跳过更新');
+                                }
+                            } else {
+                                // 有新数据点，平滑更新
+                                chart.data = data.data;
+                                const newLabelsLength = data.data.labels.length;
+                                
+                                // 少量新数据用动画，大量变化无动画
+                                const changeCount = Math.abs(newLabelsLength - oldLabelsLength);
+                                const useAnimation = changeCount <= 3;
+                                
+                                chart.update(useAnimation ? 'show' : 'none');
+                                console.log(`平滑更新: ${oldLabelsLength} -> ${newLabelsLength} 数据点 (${useAnimation ? '有' : '无'}动画)`);
+                            }
                         }
                         
                         window.lastHours = hours;
-                        
-                        // 保存图表数据到全局变量以便tooltip使用
                         window.lastApiData = data.data;
                         
                         // 更新最后更新时间
@@ -352,6 +414,7 @@
                     }
                 });
         }
+
 
         // 更新交易所状态
         function updateExchangeStatus() {
