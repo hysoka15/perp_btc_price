@@ -27,6 +27,16 @@ def index():
     """主页面 - 显示价差K线图"""
     return render_template('index.html')
 
+@app.route('/kline')
+def kline():
+    """专业K线图页面"""
+    return render_template('kline.html')
+
+@app.route('/demo')
+def demo():
+    """简化版K线图演示页面"""
+    return render_template('simple_kline.html')
+
 @app.route('/api/price_data')
 def get_price_data():
     """获取价格数据API"""
@@ -229,6 +239,188 @@ def get_chart_data():
         
     except Exception as e:
         logger.error(f"获取图表数据失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/kline_data')
+def get_kline_data():
+    """获取K线数据API - 支持不同时间周期和多交易所"""
+    try:
+        # 获取查询参数
+        exchanges_param = request.args.get('exchanges', 'aster')  # 支持多个交易所，逗号分隔
+        interval = request.args.get('interval', '1h')
+        limit = request.args.get('limit', 500, type=int)
+        
+        # 验证参数
+        valid_intervals = ['1m', '5m', '15m', '1h', '4h', '1d']
+        if interval not in valid_intervals:
+            interval = '1h'
+        
+        valid_exchanges = ['aster', 'lighter', 'edgex', 'binance']
+        
+        # 解析交易所列表
+        if ',' in exchanges_param:
+            exchanges = [e.strip() for e in exchanges_param.split(',') if e.strip() in valid_exchanges]
+        else:
+            exchanges = [exchanges_param] if exchanges_param in valid_exchanges else ['aster']
+        
+        if not exchanges:
+            exchanges = ['aster']
+        
+        # 处理多交易所数据聚合 - 使用修复后的数据库方法
+        result = {}
+        
+        try:
+            for exchange in exchanges:
+                # 使用修复后的数据库查询方法
+                kline_data = db.get_kline_data(exchange, interval, limit)
+                
+                formatted_data = []
+                for item in kline_data:
+                    formatted_data.append({
+                        'timestamp': int(datetime.fromisoformat(item['timestamp']).timestamp() * 1000),
+                        'open': float(item['open']) if item['open'] is not None else 0,
+                        'high': float(item['high']) if item['high'] is not None else 0,
+                        'low': float(item['low']) if item['low'] is not None else 0,
+                        'close': float(item['close']) if item['close'] is not None else 0,
+                        'volume': int(item['volume']) if item['volume'] is not None else 0,
+                        'exchangePrice': float(item['avg_price']) if item['avg_price'] is not None else 0,
+                        'binancePrice': float(item['avg_binance_price']) if item['avg_binance_price'] is not None else 0
+                    })
+                
+                # 按时间正序
+                formatted_data.sort(key=lambda x: x['timestamp'])
+                result[exchange] = formatted_data
+                logger.info(f"API返回 {exchange} {interval} 数据: {len(formatted_data)} 条")
+            
+            # 在处理完所有交易所后再返回
+            return jsonify({
+                'success': True,
+                'data': result,
+                'exchanges': exchanges,
+                'interval': interval,
+                'timestamp': datetime.now().isoformat()
+            })
+                
+        except Exception as e:
+            logger.error(f"多交易所数据聚合失败: {str(e)}")
+            return jsonify({
+                'success': True,
+                'data': {exchange: [] for exchange in exchanges},
+                'exchanges': exchanges,
+                'interval': interval,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            })
+        
+    except Exception as e:
+        logger.error(f"获取K线数据失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/multi_kline_data')
+def get_multi_kline_data():
+    """获取多个交易所的K线数据"""
+    try:
+        interval = request.args.get('interval', '1m')
+        limit = request.args.get('limit', 1000, type=int)
+        
+        valid_intervals = ['1m', '5m', '15m', '1h', '4h', '1d']
+        if interval not in valid_intervals:
+            interval = '1m'
+        
+        exchanges = ['aster', 'lighter', 'edgex']  # 不包括binance，因为它是基准
+        result = {}
+        
+        for exchange in exchanges:
+            kline_data = db.get_kline_data(exchange, interval, limit)
+            
+            formatted_data = []
+            for item in kline_data:
+                formatted_data.append({
+                    'timestamp': int(datetime.fromisoformat(item['timestamp']).timestamp() * 1000),
+                    'open': float(item['open']) if item['open'] is not None else 0,
+                    'high': float(item['high']) if item['high'] is not None else 0,
+                    'low': float(item['low']) if item['low'] is not None else 0,
+                    'close': float(item['close']) if item['close'] is not None else 0,
+                    'volume': int(item['volume']) if item['volume'] is not None else 0
+                })
+            
+            formatted_data.sort(key=lambda x: x['timestamp'])
+            result[exchange] = formatted_data
+        
+        return jsonify({
+            'success': True,
+            'data': result,
+            'interval': interval,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"获取多交易所K线数据失败: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/test_kline_data')
+def get_test_kline_data():
+    """获取测试K线数据 - 用于验证拖动功能"""
+    try:
+        import json
+        import os
+        
+        # 获取查询参数
+        exchanges_param = request.args.get('exchanges', 'aster')
+        interval = request.args.get('interval', '1h')
+        limit = request.args.get('limit', 500, type=int)
+        
+        # 加载测试数据
+        test_data_file = 'test_kline_data.json'
+        if not os.path.exists(test_data_file):
+            return jsonify({
+                'success': False,
+                'error': '测试数据文件不存在'
+            }), 404
+        
+        with open(test_data_file, 'r', encoding='utf-8') as f:
+            all_test_data = json.load(f)
+        
+        # 解析交易所列表
+        if ',' in exchanges_param:
+            exchanges = [e.strip() for e in exchanges_param.split(',')]
+        else:
+            exchanges = [exchanges_param]
+        
+        result = {}
+        
+        for exchange in exchanges:
+            if exchange in all_test_data and interval in all_test_data[exchange]:
+                data = all_test_data[exchange][interval]
+                
+                # 限制返回数据量
+                if limit and len(data) > limit:
+                    data = data[-limit:]  # 取最新的数据
+                
+                result[exchange] = data
+            else:
+                result[exchange] = []
+        
+        logger.info(f"返回测试数据: {', '.join(exchanges)} ({interval}) - {sum(len(data) for data in result.values())} 条记录")
+        
+        return jsonify({
+            'success': True,
+            'data': result,
+            'interval': interval,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"获取测试K线数据失败: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)

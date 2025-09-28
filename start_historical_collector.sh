@@ -39,7 +39,7 @@ except ImportError as e:
 mkdir -p logs
 
 echo "🚀 启动多交易所BTC价格历史数据采集器..."
-echo "📅 采集间隔: 每分钟"
+echo "📅 采集间隔: 每3秒"
 echo "🏦 交易所: Binance, Lighter, EdgeX, Aster"
 echo "📂 日志文件: $LOG_FILE"
 echo "📊 数据库: prices.db"

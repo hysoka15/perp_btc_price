@@ -290,6 +290,110 @@ class PriceDatabase:
         except Exception as e:
             logger.error(f"获取统计信息失败: {str(e)}")
             return {}
+    
+    def get_kline_data(self, exchange: str, interval: str = '1m', limit: int = 1000) -> List[Dict[str, Any]]:
+        """获取K线数据，支持不同时间周期聚合 - 使用简化可靠的方法"""
+        return self._get_kline_data_simple(exchange, interval, limit)
+    
+    def _get_kline_data_simple(self, exchange: str, interval: str = '1m', limit: int = 1000) -> List[Dict[str, Any]]:
+        """简单的K线数据聚合，兼容SQLite限制"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 获取原始数据
+                cursor.execute("""
+                SELECT timestamp, price_diff, price, binance_base_price
+                FROM price_data 
+                WHERE exchange = ? 
+                  AND price_diff IS NOT NULL
+                  AND timestamp >= datetime('now', '-7 days')
+                ORDER BY timestamp ASC
+                """, (exchange,))
+                
+                raw_data = cursor.fetchall()
+                if not raw_data:
+                    return []
+                
+                # Python中进行时间聚合
+                interval_map = {
+                    '1m': 60,      # 1分钟 = 60秒
+                    '5m': 300,     # 5分钟 = 300秒
+                    '15m': 900,    # 15分钟 = 900秒
+                    '1h': 3600,    # 1小时 = 3600秒
+                    '4h': 14400,   # 4小时 = 14400秒
+                    '1d': 86400    # 1天 = 86400秒
+                }
+                
+                interval_seconds = interval_map.get(interval, 60)
+                
+                # 按时间分组聚合
+                from datetime import datetime, timedelta
+                import time
+                
+                groups = {}
+                
+                for row in raw_data:
+                    try:
+                        # 解析时间戳
+                        if isinstance(row['timestamp'], str):
+                            dt = datetime.fromisoformat(row['timestamp'])
+                        else:
+                            dt = row['timestamp']
+                        
+                        # 计算时间桶
+                        timestamp = int(dt.timestamp())
+                        bucket_timestamp = (timestamp // interval_seconds) * interval_seconds
+                        bucket_dt = datetime.fromtimestamp(bucket_timestamp)
+                        bucket_key = bucket_dt.isoformat()
+                        
+                        if bucket_key not in groups:
+                            groups[bucket_key] = []
+                        
+                        groups[bucket_key].append({
+                            'price_diff': float(row['price_diff']) if row['price_diff'] is not None else 0,
+                            'price': float(row['price']) if row['price'] is not None else 0,
+                            'binance_price': float(row['binance_base_price']) if row['binance_base_price'] is not None else 0,
+                            'timestamp': dt
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"处理数据行失败: {e}")
+                        continue
+                
+                # 聚合每个时间桶的数据
+                result = []
+                for bucket_key, items in sorted(groups.items(), reverse=True):
+                    if not items:
+                        continue
+                    
+                    price_diffs = [item['price_diff'] for item in items]
+                    prices = [item['price'] for item in items]
+                    binance_prices = [item['binance_price'] for item in items]
+                    
+                    # 按时间排序
+                    items.sort(key=lambda x: x['timestamp'])
+                    
+                    result.append({
+                        'timestamp': bucket_key,
+                        'open': price_diffs[0] if price_diffs else 0,
+                        'high': max(price_diffs) if price_diffs else 0,
+                        'low': min(price_diffs) if price_diffs else 0,
+                        'close': price_diffs[-1] if price_diffs else 0,
+                        'volume': len(items),
+                        'avg_price': sum(prices) / len(prices) if prices else 0,
+                        'avg_binance_price': sum(binance_prices) / len(binance_prices) if binance_prices else 0
+                    })
+                    
+                    if len(result) >= limit:
+                        break
+                
+                logger.info(f"简单聚合返回 {exchange} {interval} 数据: {len(result)} 条")
+                return result
+                
+        except Exception as e:
+            logger.error(f"简单K线数据聚合失败 {exchange} {interval}: {str(e)}")
+            return []
 
 # 全局数据库实例
 _db_instance = None

@@ -7,12 +7,28 @@
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 import threading
 import time
 from datetime import datetime
 from typing import Dict, Optional
+
+# 加载环境变量
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # 如果没有python-dotenv，手动解析.env文件
+    env_path = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
 
 from binance_client import BinanceClient
 from lighter_client import get_lighter_btc_price
@@ -38,7 +54,7 @@ class HistoricalDataCollector:
         self.running = False
         self.db = get_database()
         
-        # 交易所配置 - 从CLAUDE.md中读取
+        # 交易所配置 - 从CLAUDE.md和环境变量中读取
         self.exchanges_config = {
             'binance': {
                 'name': 'Binance',
@@ -54,11 +70,15 @@ class HistoricalDataCollector:
                 'name': 'EdgeX',
                 'enabled': True,
                 'base_url': 'https://pro.edgex.exchange',
+                'account_id': os.getenv('EDGEX_ACCOUNT_ID'),
+                'stark_private_key': os.getenv('EDGEX_STARK_PRIVATE_KEY'),
                 'contract_id': '10000001'
             },
             'aster': {
                 'name': 'Aster',
-                'enabled': True
+                'enabled': True,
+                'api_key': os.getenv('ASTER_API_KEY'),
+                'api_secret': os.getenv('ASTER_API_SECRET')
             }
         }
         
@@ -101,7 +121,7 @@ class HistoricalDataCollector:
         self.stats['start_time'] = datetime.now()
         
         logger.info("🚀 启动多交易所BTC价格历史数据采集器")
-        logger.info(f"📅 采集间隔: 每分钟")
+        logger.info(f"📅 采集间隔: 每3秒")
         logger.info(f"🏦 启用的交易所: {[cfg['name'] for cfg in self.exchanges_config.values() if cfg['enabled']]}")
         logger.info(f"💾 数据库: SQLite")
         logger.info(f"📊 用途: 长期历史数据积累")
@@ -117,26 +137,10 @@ class HistoricalDataCollector:
     
     def run_collection_loop(self):
         """运行历史数据采集循环"""
-        logger.info("⏰ 等待下一个整分钟开始采集...")
+        logger.info("⏰ 开始每3秒采集...")
         
         while self.running:
             try:
-                # 等待到下一个整分钟
-                now = datetime.now()
-                next_minute = now.replace(second=0, microsecond=0)
-                if now.second > 0:
-                    next_minute = next_minute.replace(minute=next_minute.minute + 1)
-                    if next_minute.minute >= 60:
-                        next_minute = next_minute.replace(hour=next_minute.hour + 1, minute=0)
-                        if next_minute.hour >= 24:
-                            next_minute = next_minute.replace(day=next_minute.day + 1, hour=0)
-                
-                self.stats['next_collection_time'] = next_minute
-                wait_seconds = (next_minute - now).total_seconds()
-                
-                if wait_seconds > 0:
-                    logger.info(f"⏳ 等待 {wait_seconds:.1f} 秒到下一个整分钟 ({next_minute.strftime('%H:%M:%S')})")
-                    time.sleep(wait_seconds)
                 
                 # 开始采集
                 collection_start = time.time()
@@ -160,23 +164,28 @@ class HistoricalDataCollector:
                 
                 logger.info(f"✅ 第 {self.stats['total_collections']} 次采集完成，耗时 {collection_time:.2f}秒")
                 
-                # 每小时输出一次统计信息
-                if self.stats['total_collections'] % 60 == 0:
+                # 每100次输出一次统计信息 (约5分钟)
+                if self.stats['total_collections'] % 100 == 0:
                     self.print_hourly_stats()
                 
-                # 每天清理一次旧数据（保留30天）
-                if self.stats['total_collections'] % 1440 == 0:  # 1440分钟 = 1天
+                # 每天清理一次旧数据（保留30天） - 28800次采集约为1天
+                if self.stats['total_collections'] % 28800 == 0:  # 28800次 = 24小时 * 60分钟 * 20次/分钟
                     logger.info("🧹 开始清理30天前的旧数据...")
                     self.db.cleanup_old_data(days=30)
                     logger.info("✅ 数据清理完成")
+                
+                # 等待3秒到下一次采集
+                remaining_time = max(0, 3.0 - collection_time)
+                if remaining_time > 0:
+                    time.sleep(remaining_time)
                     
             except KeyboardInterrupt:
                 logger.info("收到键盘中断信号")
                 break
             except Exception as e:
                 logger.error(f"采集循环异常: {str(e)}", exc_info=True)
-                # 发生异常时等待60秒再继续
-                time.sleep(60)
+                # 发生异常时等待3秒再继续
+                time.sleep(3)
     
     def get_binance_price(self) -> Optional[float]:
         """获取币安BTC价格"""

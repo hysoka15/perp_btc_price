@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专业K线图 - 多交易所BTC价差分析</title>
+    
+    <!-- KLineChart CSS -->
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0b0e11;
+            color: #ffffff;
+        }
+        
+        .header {
+            background: #1a1d21;
+            padding: 15px 20px;
+            border-bottom: 1px solid #2a2d31;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .exchange-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .exchange-btn {
+            padding: 8px 16px;
+            background: #2a2d31;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .exchange-btn:hover {
+            background: #3a3d41;
+        }
+        
+        .exchange-btn.active {
+            background: #0088cc;
+            border-color: #0088cc;
+        }
+        
+        .interval-selector {
+            display: flex;
+            gap: 5px;
+            background: #2a2d31;
+            border-radius: 4px;
+            padding: 4px;
+        }
+        
+        .interval-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.3s;
+        }
+        
+        .interval-btn:hover {
+            background: #3a3d41;
+        }
+        
+        .interval-btn.active {
+            background: #0088cc;
+            color: #ffffff;
+        }
+        
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .chart-container {
+            height: calc(100vh - 80px);
+            background: #0b0e11;
+            position: relative;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #2a2d31;
+            border-top: 3px solid #0088cc;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #dc3545;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(26, 29, 33, 0.9);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #2a2d31;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .price-info {
+            margin-bottom: 5px;
+        }
+        
+        .positive {
+            color: #28a745;
+        }
+        
+        .negative {
+            color: #dc3545;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .switch {
+            position: relative;
+            width: 40px;
+            height: 20px;
+            background: #2a2d31;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .switch.active {
+            background: #0088cc;
+        }
+        
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        
+        .switch.active::after {
+            transform: translateX(20px);
+        }
+        
+        #kline-chart {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title">专业K线图 - BTC价差分析</div>
+        
+        <div class="controls">
+            <div class="exchange-selector">
+                <span>交易所:</span>
+                <button class="exchange-btn active" data-exchange="aster">Aster</button>
+                <button class="exchange-btn" data-exchange="lighter">Lighter</button>
+                <button class="exchange-btn" data-exchange="edgex">EdgeX</button>
+            </div>
+            
+            <div class="interval-selector">
+                <button class="interval-btn" data-interval="1m">1分</button>
+                <button class="interval-btn" data-interval="5m">5分</button>
+                <button class="interval-btn" data-interval="15m">15分</button>
+                <button class="interval-btn active" data-interval="1h">1时</button>
+                <button class="interval-btn" data-interval="4h">4时</button>
+                <button class="interval-btn" data-interval="1d">1日</button>
+            </div>
+            
+            <div class="auto-refresh">
+                <span>自动刷新:</span>
+                <div class="switch active" id="autoRefreshSwitch"></div>
+            </div>
+            
+            <div class="status">
+                <div class="status-indicator"></div>
+                <span id="lastUpdate">连接中...</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="chart-container">
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>加载中...</div>
+        </div>
+        
+        <div class="info-panel" id="infoPanel" style="display: none;">
+            <div class="price-info">
+                <strong>实时价差信息</strong>
+            </div>
+            <div id="priceInfo">
+                <div>开盘: <span id="openPrice">--</span> USDT</div>
+                <div>最高: <span id="highPrice">--</span> USDT</div>
+                <div>最低: <span id="lowPrice">--</span> USDT</div>
+                <div>收盘: <span id="closePrice">--</span> USDT</div>
+                <div>成交量: <span id="volume">--</span></div>
+            </div>
+        </div>
+        
+        <div id="kline-chart"></div>
+    </div>
+
+    <!-- 引入KLineChart -->
+    <script src="https://unpkg.com/klinecharts/dist/umd/klinecharts.min.js"></script>
+    
+    <script>
+        class KLineManager {
+            constructor() {
+                this.chart = null;
+                this.currentExchange = 'aster';
+                this.currentInterval = '1h';
+                this.autoRefresh = true;
+                this.refreshInterval = null;
+                this.isLoading = false;
+                
+                this.init();
+            }
+            
+            init() {
+                this.createChart();
+                this.bindEvents();
+                this.loadData();
+                this.startAutoRefresh();
+            }
+            
+            createChart() {
+                // 创建K线图，使用简化配置
+                this.chart = klinecharts.init('kline-chart');
+                
+                // 设置基本样式（简化版本，避免API兼容性问题）
+                try {
+                    this.chart.setStyles({
+                        candle: {
+                            type: 'candle_solid',
+                            bar: {
+                                upColor: '#26a69a',
+                                downColor: '#ef5350',
+                                noChangeColor: '#888888'
+                            }
+                        },
+                        grid: {
+                            show: true,
+                            horizontal: {
+                                show: true,
+                                color: '#1a1d21'
+                            },
+                            vertical: {
+                                show: true,
+                                color: '#1a1d21'
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.log('样式设置失败，使用默认样式:', e);
+                }
+                
+                // 订阅事件（使用更通用的方法）
+                try {
+                    this.chart.subscribeAction('onCrosshairChange', (data) => {
+                        if (data && data.kLineData) {
+                            this.updateInfoPanel(data.kLineData);
+                        }
+                    });
+                } catch (e) {
+                    console.log('事件订阅失败:', e);
+                }
+            }
+            
+            bindEvents() {
+                // 交易所切换
+                document.querySelectorAll('.exchange-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        if (this.isLoading) return;
+                        
+                        document.querySelectorAll('.exchange-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        
+                        this.currentExchange = e.target.dataset.exchange;
+                        this.loadData();
+                    });
+                });
+                
+                // 时间周期切换
+                document.querySelectorAll('.interval-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        if (this.isLoading) return;
+                        
+                        document.querySelectorAll('.interval-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        
+                        this.currentInterval = e.target.dataset.interval;
+                        this.loadData();
+                    });
+                });
+                
+                // 自动刷新开关
+                document.getElementById('autoRefreshSwitch').addEventListener('click', () => {
+                    this.autoRefresh = !this.autoRefresh;
+                    const switchEl = document.getElementById('autoRefreshSwitch');
+                    
+                    if (this.autoRefresh) {
+                        switchEl.classList.add('active');
+                        this.startAutoRefresh();
+                    } else {
+                        switchEl.classList.remove('active');
+                        this.stopAutoRefresh();
+                    }
+                });
+            }
+            
+            async loadData() {
+                if (this.isLoading) return;
+                
+                this.isLoading = true;
+                this.showLoading(true);
+                
+                try {
+                    const response = await fetch(`/api/kline_data?exchange=${this.currentExchange}&interval=${this.currentInterval}&limit=1000`);
+                    const result = await response.json();
+                    
+                    if (result.success && result.data) {
+                        // 转换数据格式
+                        const klineData = result.data.map(item => ({
+                            timestamp: item.timestamp,
+                            open: item.open,
+                            high: item.high,
+                            low: item.low,
+                            close: item.close,
+                            volume: item.volume
+                        }));
+                        
+                        // 更新图表数据（使用正确的API方法）
+                        try {
+                            // 尝试不同的数据更新方法
+                            if (this.chart.applyNewData) {
+                                this.chart.applyNewData(klineData);
+                            } else if (this.chart.applyMoreData) {
+                                this.chart.applyMoreData(klineData);
+                            } else if (this.chart.updateData) {
+                                this.chart.updateData(klineData);
+                            } else {
+                                console.log('找不到合适的数据更新方法');
+                            }
+                        } catch (e) {
+                            console.error('数据更新失败:', e);
+                        }
+                        
+                        // 更新状态
+                        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                        
+                        // 显示信息面板
+                        document.getElementById('infoPanel').style.display = 'block';
+                        
+                        console.log(`加载了 ${klineData.length} 条 ${this.currentExchange} ${this.currentInterval} 数据`);
+                        
+                    } else {
+                        throw new Error(result.error || '数据加载失败');
+                    }
+                    
+                } catch (error) {
+                    console.error('加载数据失败:', error);
+                    this.showError(error.message);
+                } finally {
+                    this.isLoading = false;
+                    this.showLoading(false);
+                }
+            }
+            
+            updateInfoPanel(klineData) {
+                if (!klineData) return;
+                
+                const formatValue = (value) => {
+                    if (value === null || value === undefined) return '--';
+                    const num = parseFloat(value);
+                    return isNaN(num) ? '--' : num.toFixed(4);
+                };
+                
+                const getClass = (value) => {
+                    const num = parseFloat(value);
+                    if (isNaN(num)) return '';
+                    return num >= 0 ? 'positive' : 'negative';
+                };
+                
+                document.getElementById('openPrice').textContent = formatValue(klineData.open);
+                document.getElementById('openPrice').className = getClass(klineData.open);
+                
+                document.getElementById('highPrice').textContent = formatValue(klineData.high);
+                document.getElementById('highPrice').className = getClass(klineData.high);
+                
+                document.getElementById('lowPrice').textContent = formatValue(klineData.low);
+                document.getElementById('lowPrice').className = getClass(klineData.low);
+                
+                document.getElementById('closePrice').textContent = formatValue(klineData.close);
+                document.getElementById('closePrice').className = getClass(klineData.close);
+                
+                document.getElementById('volume').textContent = klineData.volume || '--';
+            }
+            
+            showLoading(show) {
+                document.getElementById('loading').style.display = show ? 'flex' : 'none';
+            }
+            
+            showError(message) {
+                const existingError = document.querySelector('.error');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.innerHTML = `
+                    <h3>加载失败</h3>
+                    <p>${message}</p>
+                    <button onclick="location.reload()">重新加载</button>
+                `;
+                
+                document.querySelector('.chart-container').appendChild(errorDiv);
+                
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.remove();
+                    }
+                }, 5000);
+            }
+            
+            startAutoRefresh() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                }
+                
+                if (this.autoRefresh) {
+                    this.refreshInterval = setInterval(() => {
+                        this.loadData();
+                    }, 10000); // 每10秒刷新
+                }
+            }
+            
+            stopAutoRefresh() {
+                if (this.refreshInterval) {
+                    clearInterval(this.refreshInterval);
+                    this.refreshInterval = null;
+                }
+            }
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            new KLineManager();
+        });
+        
+        // 页面卸载时清理
+        window.addEventListener('beforeunload', () => {
+            if (window.klineManager) {
+                window.klineManager.stopAutoRefresh();
+            }
+        });
+    </script>
+</body>
+</html>
